@@ -1,0 +1,39 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg17
+    environment:
+      POSTGRES_DB: rag
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U rag -d rag"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build: ./backend
+    environment:
+      APP_NAME: Agentic RAG API
+      DATABASE_URL: postgresql://rag:rag@postgres:5432/rag
+      GROQ_API_KEY: ${GROQ_API_KEY:?Set GROQ_API_KEY in .env}
+      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      HF_TOKEN: ${HF_TOKEN:?Set HF_TOKEN in .env}
+      HF_EMBEDDING_MODEL: ${HF_EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}
+      EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-384}
+      RETRIEVAL_TOP_K: ${RETRIEVAL_TOP_K:-5}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:-10485760}
+      CHUNK_SIZE: ${CHUNK_SIZE:-900}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP:-150}
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
