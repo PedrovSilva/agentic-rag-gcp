@@ -15,9 +15,6 @@ Technical documentation assistant built with **FastAPI, PostgreSQL + pgvector an
 
 ```bash
 cp .env.example .env
-# configure GOOGLE_CLOUD_PROJECT and authenticate with gcloud
-
-gcloud auth application-default login
 
 docker compose up --build
 ```
@@ -47,7 +44,7 @@ python -m pytest
 
 ## Roadmap
 
-- [ ] React chat UI
+- [ ] Vue chat UI
 - [ ] Hybrid search + reranking
 - [ ] Agent tools
 - [ ] MCP server
