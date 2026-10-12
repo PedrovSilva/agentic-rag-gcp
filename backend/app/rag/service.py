@@ -37,7 +37,7 @@ def ingest_document(filename: str, content: str) -> dict[str, Any]:
             (filename, digest),
         ).fetchone()
         document_id = row[0]
-        conn.executemany(
+        conn.cursor().executemany(
             "INSERT INTO document_chunks (document_id, chunk_index, content, embedding) "
             "VALUES (%s, %s, %s, %s)",
             [
