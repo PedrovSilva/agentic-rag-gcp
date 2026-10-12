@@ -52,9 +52,3 @@ curl -X POST http://localhost:8000/api/query \
   -d '{"question":"Como funciona a arquitetura do projeto?","top_k":5}'
 ```
 
-## Important notes
-
-- `BAAI/bge-small-en-v1.5` produces 384-dimensional embeddings. `EMBEDDING_DIMENSIONS` must match the PostgreSQL vector column. If you change embedding models/dimensions, recreate or migrate the `document_chunks` table and re-ingest every document.
-- Do not commit `.env` or API tokens.
-- Uploaded content is treated as untrusted context by the generation prompt. This is a baseline guardrail, not a complete prompt-injection defense.
-- Duplicate normalized document content is detected by SHA-256 and is not inserted twice.
