@@ -176,3 +176,55 @@ def test_query_maps_empty_question_error_to_422(client):
 
     assert response.status_code == 422
     assert response.json()["detail"] == "Question cannot be empty"
+
+
+def test_upload_rejects_invalid_utf8(client):
+    response = client.post(
+        "/api/documents",
+        files={
+            "file": (
+                "document.txt",
+                b"\xff\xfe\xfa",
+                "text/plain",
+            )
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["detail"] == "File must be UTF-8 encoded"
+
+
+def test_upload_returns_502_when_ingestion_fails(client, monkeypatch):
+    from app.api import routes
+
+    def fail_ingestion(*args, **kwargs):
+        raise RuntimeError("internal database details")
+
+    monkeypatch.setattr(routes, "ingest_document", fail_ingestion)
+
+    response = client.post(
+        "/api/documents",
+        files={"file": ("document.txt", b"Conteudo valido", "text/plain")},
+    )
+
+    assert response.status_code == 502
+    assert "internal database details" not in response.text
+    assert "RuntimeError" in response.json()["detail"]
+
+
+def test_query_returns_502_when_rag_fails(client, monkeypatch):
+    from app.api import routes
+
+    def fail_query(*args, **kwargs):
+        raise RuntimeError("internal database details")
+
+    monkeypatch.setattr(routes, "answer_question", fail_query)
+
+    response = client.post(
+        "/api/query",
+        json={"question": "O que existe nos documentos?"},
+    )
+
+    assert response.status_code == 502
+    assert "internal database details" not in response.text
+    assert "RuntimeError" in response.json()["detail"]

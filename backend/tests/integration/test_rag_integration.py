@@ -12,13 +12,24 @@ def isolated_database(monkeypatch):
     if not database_url:
         pytest.skip("Configure TEST_DATABASE_URL para executar integração")
 
-    database_name = urlparse(database_url).path.lstrip("/")
-    if not database_name.endswith("_test"):
+    parsed_url = urlparse(database_url)
+    database_name = parsed_url.path.lstrip("/")
+    allowed_hosts = {"localhost", "127.0.0.1", "test-db"}
+
+    if parsed_url.scheme not in {"postgres", "postgresql"}:
+        pytest.fail("TEST_DATABASE_URL deve usar PostgreSQL")
+
+    if parsed_url.hostname not in allowed_hosts:
         pytest.fail(
-            "Por segurança, TEST_DATABASE_URL deve apontar para um banco "
-            "cujo nome termine com _test"
+            "Banco de teste deve usar localhost, 127.0.0.1 ou test-db"
         )
 
+    if not database_name.endswith("_test"):
+        pytest.fail(
+            "Por segurança, o banco de integração deve terminar com _test"
+        )
+
+    # A aplicação deve usar o banco validado, não DATABASE_URL do .env.
     monkeypatch.setenv("DATABASE_URL", database_url)
 
     from app.core.config import get_settings
