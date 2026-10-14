@@ -44,7 +44,7 @@ python -m pytest
 
 ## Roadmap
 
-- [ ] Vue chat UI
+- [ ] Vue chat UI (typescript)
 - [ ] Hybrid search + reranking
 - [ ] Agent tools
 - [ ] MCP server
