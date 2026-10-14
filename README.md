@@ -51,5 +51,5 @@ python -m pytest
 - [ ] Guardrails
 - [ ] RAG evaluation dataset and metrics
 - [ ] OpenTelemetry
-- [ ] GitHub Actions
+- [x] GitHub Actions
 - [ ] Terraform + Cloud Run
