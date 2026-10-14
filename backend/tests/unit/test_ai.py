@@ -1,5 +1,5 @@
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 
@@ -73,3 +73,106 @@ def test_generate_answer_returns_empty_string_when_content_is_none(
     monkeypatch.setattr(ai, "get_groq_client", lambda: client)
 
     assert ai.generate_answer("Pergunta", "Contexto") == ""
+
+def test_upload_document_success(client, mock_settings):
+    with patch(
+        "app.api.routes.ingest_document",
+        return_value={
+            "document_id": 1,
+            "filename": "guia.txt",
+            "chunks": 2,
+            "duplicate": False,
+        },
+    ) as ingest:
+        response = client.post(
+            "/api/documents",
+            files={"file": ("guia.txt", b"Conteudo para indexar", "text/plain")},
+        )
+
+    assert response.status_code == 201
+    assert response.json()["document_id"] == 1
+    assert response.json()["chunks"] == 2
+    ingest.assert_called_once_with("guia.txt", "Conteudo para indexar")
+
+
+def test_upload_rejects_unsupported_extension(client, mock_settings):
+    response = client.post(
+        "/api/documents",
+        files={"file": ("documento.pdf", b"conteudo", "application/pdf")},
+    )
+
+    assert response.status_code == 415
+
+
+def test_upload_rejects_empty_file(client, mock_settings):
+    response = client.post(
+        "/api/documents",
+        files={"file": ("vazio.txt", b"   \n", "text/plain")},
+    )
+
+    assert response.status_code == 400
+
+
+def test_upload_rejects_file_above_limit(client, mock_settings):
+    mock_settings.max_upload_bytes = 4
+
+    response = client.post(
+        "/api/documents",
+        files={"file": ("grande.txt", b"12345", "text/plain")},
+    )
+
+    assert response.status_code == 413
+
+
+def test_query_returns_answer_and_sources(client):
+    expected = {
+        "answer": "A API utiliza FastAPI.",
+        "sources": [
+            {
+                "document_id": 1,
+                "filename": "guia.txt",
+                "chunk_index": 0,
+                "content": "A API utiliza FastAPI.",
+                "distance": 0.12,
+            }
+        ],
+    }
+
+    with patch("app.api.routes.answer_question", return_value=expected) as answer:
+        response = client.post(
+            "/api/query",
+            json={"question": "Qual framework a API utiliza?", "top_k": 3},
+        )
+
+    assert response.status_code == 200
+    assert response.json() == expected
+    answer.assert_called_once_with("Qual framework a API utiliza?", 3)
+
+
+def test_query_rejects_missing_question(client):
+    response = client.post("/api/query", json={})
+
+    assert response.status_code == 422
+
+
+def test_query_rejects_invalid_top_k(client):
+    response = client.post(
+        "/api/query",
+        json={"question": "Teste", "top_k": 0},
+    )
+
+    assert response.status_code == 422
+
+
+def test_query_maps_empty_question_error_to_422(client):
+    with patch(
+        "app.api.routes.answer_question",
+        side_effect=ValueError("Question cannot be empty"),
+    ):
+        response = client.post(
+            "/api/query",
+            json={"question": " "},
+        )
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == "Question cannot be empty"
