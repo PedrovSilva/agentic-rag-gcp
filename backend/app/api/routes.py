@@ -49,12 +49,12 @@ async def upload_document(file: UploadFile = File(...)):
         return ingest_document(filename, content)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
+    except Exception:
         logger.exception("Document ingestion failed")
         raise HTTPException(
             status_code=502,
-            detail=f"Document ingestion failed: {type(exc).__name__}",
-        ) from exc
+            detail="Não foi possível processar o documento.",
+        ) from None
 
 @router.post("/query", response_model=QueryResponse)
 def query_documents(payload: QueryRequest):
@@ -62,9 +62,9 @@ def query_documents(payload: QueryRequest):
         return answer_question(payload.question, payload.top_k)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
-    except Exception as exc:
+    except Exception:
         logger.exception("RAG query failed")
         raise HTTPException(
             status_code=502,
-            detail=f"RAG query failed: {type(exc).__name__}",
-        ) from exc
+            detail="Não foi possível processar a consulta.",
+        ) from None

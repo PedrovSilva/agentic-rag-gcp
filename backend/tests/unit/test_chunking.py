@@ -22,3 +22,12 @@ def test_long_text_is_split_and_overlaps():
 def test_invalid_overlap_raises():
     with pytest.raises(ValueError):
         split_text("texto", chunk_size=10, overlap=10)
+
+def test_chunks_have_overlap():
+    text = "A" * 100
+    chunks = split_text(text, chunk_size=30, overlap=10)
+
+    assert len(chunks) > 1
+
+    for previous, current in zip(chunks, chunks[1:]):
+        assert previous[-10:] == current[:10]
