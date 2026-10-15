@@ -209,7 +209,7 @@ def test_upload_returns_502_when_ingestion_fails(client, monkeypatch):
 
     assert response.status_code == 502
     assert "internal database details" not in response.text
-    assert "RuntimeError" in response.json()["detail"]
+    assert "RuntimeError" not in response.text
 
 
 def test_query_returns_502_when_rag_fails(client, monkeypatch):
@@ -227,4 +227,4 @@ def test_query_returns_502_when_rag_fails(client, monkeypatch):
 
     assert response.status_code == 502
     assert "internal database details" not in response.text
-    assert "RuntimeError" in response.json()["detail"]
+    assert "RuntimeError" not in response.text

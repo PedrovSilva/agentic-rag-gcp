@@ -129,9 +129,8 @@ def test_retrieve_context_returns_sources(
     assert query_args[2] == 2
 
 
-def test_answer_question_rejects_empty_question():
-    with pytest.raises(ValueError, match="empty"):
-        service.answer_question("   ")
+with pytest.raises(ValueError, match="pergunta não pode estar vazia"):
+    service.answer_question("   ")
 
 
 def test_answer_question_without_sources(monkeypatch):
@@ -141,10 +140,9 @@ def test_answer_question_without_sources(monkeypatch):
         lambda question, top_k: [],
     )
 
-    result = service.answer_question("Pergunta sem documentos")
-
+    result = service.answer_question("Qual é a informação?")
+    assert "não encontrei evidências suficientes" in result["answer"].lower()
     assert result["sources"] == []
-    assert "não encontrei documentos" in result["answer"]
 
 
 def test_answer_question_uses_retrieved_context(monkeypatch):

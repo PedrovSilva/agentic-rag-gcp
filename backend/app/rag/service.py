@@ -4,6 +4,7 @@ from typing import Any
 from pgvector import Vector
 
 from app.core.config import get_settings
+from app.core.guardrails import normalize_question, select_relevant_sources
 from app.db import get_connection
 from app.rag.chunking import split_text
 from app.services.ai import embed_text, generate_answer
@@ -76,20 +77,68 @@ def retrieve_context(question: str, top_k: int | None = None) -> list[dict[str, 
     ]
 
 
-def answer_question(question: str, top_k: int | None = None) -> dict[str, Any]:
-    if not question.strip():
-        raise ValueError("Question cannot be empty")
+
+def answer_question(
+    question: str,
+    top_k: int | None = None,
+) -> dict[str, Any]:
+    settings = get_settings()
+    question = normalize_question(question)
+
     sources = retrieve_context(question, top_k)
+    sources = select_relevant_sources(
+        sources,
+        max_distance=settings.retrieval_max_distance,
+    )
+
     if not sources:
         return {
-            "answer": "Ainda não encontrei documentos indexados para responder à pergunta.",
+            "answer": (
+                "Não encontrei evidências suficientes nos documentos "
+                "disponíveis para responder a essa pergunta."
+            ),
             "sources": [],
         }
-    context = "\n\n---\n\n".join(
-        f"Fonte: {source['filename']} (trecho {source['chunk_index'] + 1})\n{source['content']}"
-        for source in sources
-    )
+
+    # Limita o contexto enviado ao modelo.
+    context_parts: list[str] = []
+    remaining_chars = settings.max_context_chars
+
+    for source in sources:
+        part = (
+            f"Arquivo: {source['filename']}\n"
+            f"Trecho: {source['chunk_index'] + 1}\n"
+            f"Conteúdo: {source['content']}"
+        )
+
+        if remaining_chars <= 0:
+            break
+
+        if len(part) > remaining_chars:
+            part = part[:remaining_chars]
+
+        context_parts.append(part)
+        remaining_chars -= len(part)
+
+    context = "\n\n---\n\n".join(context_parts)
+
+    if not context.strip():
+        return {
+            "answer": (
+                "Não encontrei evidências suficientes nos documentos "
+                "disponíveis para responder a essa pergunta."
+            ),
+            "sources": [],
+        }
+
     answer = generate_answer(question, context)
+
+    if not answer:
+        answer = (
+            "Não foi possível produzir uma resposta com as evidências "
+            "disponíveis."
+        )
+
     return {
         "answer": answer,
         "sources": [

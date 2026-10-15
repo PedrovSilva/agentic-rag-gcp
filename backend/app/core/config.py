@@ -19,6 +19,10 @@ class Settings(BaseSettings):
     chunk_size: int = 900
     chunk_overlap: int = 150
 
+    # RAG guardrails
+    retrieval_max_distance: float = 0.45
+    max_context_chars: int = 12000
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
