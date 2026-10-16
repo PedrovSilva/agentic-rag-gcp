@@ -11,6 +11,7 @@ COPY requirements.txt .
 RUN pip install --upgrade pip && pip install -r requirements.txt
 
 COPY app ./app
+COPY evaluation ./evaluation
 COPY tests ./tests
 COPY pytest.ini .
 
