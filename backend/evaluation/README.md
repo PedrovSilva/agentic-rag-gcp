@@ -1,32 +1,44 @@
-# RAG retrieval evaluation
+# Avaliação de recuperação: corpus diversificado + reranking
 
-Este diretório contém um dataset versionado com 20 perguntas e um script para medir a qualidade da recuperação. Cada registro JSONL inclui uma resposta de referência para futura avaliação das respostas e nomes de arquivos esperados para avaliar a recuperação.
+O dataset contém 32 perguntas distribuídas entre quatro documentos de referência. Ele foi projetado para avaliar fontes distintas, consultas com termos exatos e perguntas formuladas de maneiras diferentes.
 
-## Pré-requisitos
+## Corpus
 
-1. Suba a aplicação e o PostgreSQL/pgvector com o fluxo normal do Docker Compose.
-2. Faça upload de `data/evaluation_reference.md` para `POST /api/documents`. A avaliação não ingere documentos automaticamente.
-3. Configure as variáveis de ambiente do backend no `.env`.
+Os quatro arquivos em `data/evaluation_corpus/` devem ser ingeridos na API antes da avaliação:
 
-## Executar
+- `architecture-and-ingestion.md`
+- `retrieval-and-ranking.md`
+- `evaluation-and-testing.md`
+- `operations-and-security.md`
 
-Na pasta `backend/`:
+Os nomes dos arquivos ingeridos precisam corresponder exatamente aos valores de `expected_sources` no JSONL. Faça upload de cada documento pela API de ingestão já existente. Não é necessário excluir documentos anteriores; eles podem aparecer como candidatos, mas não contam como fontes esperadas.
+
+## Executar comparação
+
+No terminal, a partir de `backend/`:
 
 ```bash
-python -m evaluation.evaluate_retrieval --top-k 5
-python -m evaluation.evaluate_retrieval --top-k 5 --output evaluation/reports/latest.json
+python -m evaluation.compare_retrieval \
+  --top-k 5 \
+  --output evaluation/reports/retrieval-comparison.json
 ```
 
-## Métricas
+O script compara:
 
-- **Recall@K**: fração média dos documentos-fonte esperados encontrados entre os K primeiros resultados.
-- **MRR (Mean Reciprocal Rank)**: média do inverso da posição do primeiro documento esperado; zero quando nenhum é recuperado.
-- **Hit Rate@K**: proporção de perguntas em que ao menos uma fonte esperada aparece nos K primeiros resultados.
+1. `vector_only`: recuperação vetorial atual.
+2. `hybrid_rrf`: recuperação vetorial + lexical combinada por Reciprocal Rank Fusion, sem reranking.
+3. `hybrid_rrf_crossencoder`: mesma recuperação híbrida, seguida pelo CrossEncoder.
 
-## Evolução do dataset
+A primeira execução com CrossEncoder pode baixar pesos e levar mais tempo. Para medir apenas os dois primeiros métodos:
 
-- Mantenha um objeto JSON por linha em `dataset.jsonl`.
-- `expected_sources` deve corresponder aos valores de `filename` armazenados no banco.
-- Inclua perguntas fáceis e difíceis, documentos diferentes e casos sem resposta conforme o corpus crescer.
-- `expected_answer` é uma referência escrita por uma pessoa, não uma resposta automaticamente verificada. Revise e expanda o dataset antes de usar métricas como afirmação de qualidade.
-- Compare configurações com o mesmo dataset e corpus. Não divulgue resultados como medidos até executar o script contra um corpus indexado.
+```bash
+python -m evaluation.compare_retrieval --top-k 5 --skip-crossencoder
+```
+
+## Métricas e limites
+
+- **Recall@K:** proporção das fontes esperadas recuperadas entre os K resultados.
+- **MRR:** inverso da posição do primeiro resultado relevante, calculado como média entre perguntas.
+- **Hit Rate@K:** proporção de perguntas que recuperam pelo menos uma fonte esperada.
+
+O relatório contém métricas agregadas e resultados por pergunta para cada método. Não espere necessariamente uma melhoria: o resultado depende do corpus, dos embeddings, da configuração e do modelo CrossEncoder. Essas métricas medem recuperação de fontes, não fidelidade da resposta gerada. Não publique resultados como benchmark de produção sem uma avaliação maior e representativa.
