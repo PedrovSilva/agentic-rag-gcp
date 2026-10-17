@@ -12,6 +12,8 @@ def settings(monkeypatch):
         chunk_size=100,
         chunk_overlap=20,
         retrieval_top_k=3,
+        retrieval_max_distance=0.45,
+        max_context_chars = 12000,
     )
     monkeypatch.setattr(service, "get_settings", lambda: config)
     return config
@@ -136,7 +138,7 @@ with pytest.raises(ValueError, match="pergunta não pode estar vazia"):
 def test_answer_question_without_sources(monkeypatch):
     monkeypatch.setattr(
         service,
-        "retrieve_context",
+        "retrieve_hybrid_context",
         lambda question, top_k: [],
     )
 
@@ -158,7 +160,7 @@ def test_answer_question_uses_retrieved_context(monkeypatch):
 
     monkeypatch.setattr(
         service,
-        "retrieve_context",
+        "retrieve_hybrid_context",
         lambda question, top_k: sources,
     )
 
