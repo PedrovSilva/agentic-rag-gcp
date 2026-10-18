@@ -23,8 +23,13 @@ class Settings(BaseSettings):
     retrieval_max_distance: float = 0.45
     max_context_chars: int = 12000
 
+    # Hybrid retrieval and optional cross-encoder reranking
+    hybrid_candidate_multiplier: int = 4
+    rrf_constant: int = 60
+    reranker_enabled: bool = False
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file="../.env",
         env_file_encoding="utf-8",
         case_sensitive=False,
         extra="ignore",

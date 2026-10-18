@@ -45,11 +45,11 @@ python -m pytest
 ## Roadmap
 
 - [ ] Vue chat UI (typescript)
-- [ ] Hybrid search + reranking
+- [x] Hybrid search + reranking
 - [ ] Agent tools
 - [ ] MCP server
 - [x] Guardrails
-- [ ] RAG evaluation dataset and metrics
+- [x] RAG evaluation dataset and metrics
 - [ ] OpenTelemetry
 - [x] GitHub Actions
 - [ ] Terraform + Cloud Run
