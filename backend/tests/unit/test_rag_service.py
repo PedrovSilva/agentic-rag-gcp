@@ -170,8 +170,16 @@ def test_answer_question_uses_retrieved_context(monkeypatch):
     result = service.answer_question("Qual autenticação é usada?")
 
     assert result["answer"] == "O sistema usa JWT."
-    assert result["sources"] == sources
+    assert len(result["sources"]) == len(sources)
 
+    for actual, expected in zip(result["sources"], sources):
+        assert actual["document_id"] == expected["document_id"]
+        assert actual["filename"] == expected["filename"]
+        assert actual["chunk_index"] == expected["chunk_index"]
+        assert actual["content"] == expected["content"]
+        assert actual["distance"] == expected["distance"]
+        assert actual["lexical_score"] is None
+        assert actual["rerank_score"] is None
     prompt_context = generate_mock.call_args.args[1]
     assert "manual.txt" in prompt_context
     assert "O sistema usa autenticação JWT." in prompt_context
