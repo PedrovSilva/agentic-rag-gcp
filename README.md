@@ -48,7 +48,7 @@ python -m pytest
 - [x] Hybrid search + reranking
 - [ ] Agent tools
 - [ ] MCP server
-- [ ] Guardrails
+- [x] Guardrails
 - [x] RAG evaluation dataset and metrics
 - [ ] OpenTelemetry
 - [x] GitHub Actions
