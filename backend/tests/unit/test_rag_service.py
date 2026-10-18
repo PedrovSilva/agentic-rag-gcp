@@ -12,6 +12,8 @@ def settings(monkeypatch):
         chunk_size=100,
         chunk_overlap=20,
         retrieval_top_k=3,
+        retrieval_max_distance=0.45,
+        max_context_chars = 12000,
     )
     monkeypatch.setattr(service, "get_settings", lambda: config)
     return config
@@ -136,7 +138,7 @@ with pytest.raises(ValueError, match="pergunta não pode estar vazia"):
 def test_answer_question_without_sources(monkeypatch):
     monkeypatch.setattr(
         service,
-        "retrieve_context",
+        "retrieve_hybrid_context",
         lambda question, top_k: [],
     )
 
@@ -158,7 +160,7 @@ def test_answer_question_uses_retrieved_context(monkeypatch):
 
     monkeypatch.setattr(
         service,
-        "retrieve_context",
+        "retrieve_hybrid_context",
         lambda question, top_k: sources,
     )
 
@@ -168,8 +170,16 @@ def test_answer_question_uses_retrieved_context(monkeypatch):
     result = service.answer_question("Qual autenticação é usada?")
 
     assert result["answer"] == "O sistema usa JWT."
-    assert result["sources"] == sources
+    assert len(result["sources"]) == len(sources)
 
+    for actual, expected in zip(result["sources"], sources):
+        assert actual["document_id"] == expected["document_id"]
+        assert actual["filename"] == expected["filename"]
+        assert actual["chunk_index"] == expected["chunk_index"]
+        assert actual["content"] == expected["content"]
+        assert actual["distance"] == expected["distance"]
+        assert actual["lexical_score"] is None
+        assert actual["rerank_score"] is None
     prompt_context = generate_mock.call_args.args[1]
     assert "manual.txt" in prompt_context
     assert "O sistema usa autenticação JWT." in prompt_context

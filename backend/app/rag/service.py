@@ -4,9 +4,10 @@ from typing import Any
 from pgvector import Vector
 
 from app.core.config import get_settings
-from app.core.guardrails import normalize_question, select_relevant_sources
+from app.core.guardrails import normalize_question
 from app.db import get_connection
 from app.rag.chunking import split_text
+from app.rag.hybrid_search import retrieve_hybrid_context
 from app.services.ai import embed_text, generate_answer
 
 
@@ -21,8 +22,6 @@ def ingest_document(filename: str, content: str) -> dict[str, Any]:
     if not chunks:
         raise ValueError("No text could be extracted from the document")
 
-    # Compute embeddings before opening the transaction, avoiding a long DB lock
-    # while making remote API calls.
     embedded_chunks = [(chunk, embed_text(chunk)) for chunk in chunks]
 
     with get_connection() as conn:
@@ -31,7 +30,12 @@ def ingest_document(filename: str, content: str) -> dict[str, Any]:
             (digest,),
         ).fetchone()
         if existing:
-            return {"document_id": existing[0], "filename": existing[1], "chunks": 0, "duplicate": True}
+            return {
+                "document_id": existing[0],
+                "filename": existing[1],
+                "chunks": 0,
+                "duplicate": True,
+            }
 
         row = conn.execute(
             "INSERT INTO documents (filename, content_sha256) VALUES (%s, %s) RETURNING id",
@@ -46,13 +50,19 @@ def ingest_document(filename: str, content: str) -> dict[str, Any]:
                 for index, (chunk, vector) in enumerate(embedded_chunks)
             ],
         )
-    return {"document_id": document_id, "filename": filename, "chunks": len(chunks), "duplicate": False}
+    return {
+        "document_id": document_id,
+        "filename": filename,
+        "chunks": len(chunks),
+        "duplicate": False,
+    }
 
 
 def retrieve_context(question: str, top_k: int | None = None) -> list[dict[str, Any]]:
+    """Original vector-only retrieval, retained as an evaluation baseline."""
     settings = get_settings()
     query_vector = Vector(embed_text(question))
-    limit = top_k or settings.retrieval_top_k
+    limit = top_k if top_k is not None else settings.retrieval_top_k
     with get_connection() as conn:
         rows = conn.execute(
             """
@@ -77,19 +87,18 @@ def retrieve_context(question: str, top_k: int | None = None) -> list[dict[str, 
     ]
 
 
-
-def answer_question(
-    question: str,
-    top_k: int | None = None,
-) -> dict[str, Any]:
+def answer_question(question: str, top_k: int | None = None) -> dict[str, Any]:
     settings = get_settings()
     question = normalize_question(question)
 
-    sources = retrieve_context(question, top_k)
-    sources = select_relevant_sources(
-        sources,
-        max_distance=settings.retrieval_max_distance,
-    )
+    sources = retrieve_hybrid_context(question, top_k)
+    # Lexical-only results have no vector distance and remain eligible. Apply the
+    # configured distance threshold to candidates that have a vector score.
+    sources = [
+        source for source in sources
+        if source.get("distance") is None
+        or source["distance"] <= settings.retrieval_max_distance
+    ]
 
     if not sources:
         return {
@@ -100,28 +109,22 @@ def answer_question(
             "sources": [],
         }
 
-    # Limita o contexto enviado ao modelo.
     context_parts: list[str] = []
     remaining_chars = settings.max_context_chars
-
     for source in sources:
         part = (
             f"Arquivo: {source['filename']}\n"
             f"Trecho: {source['chunk_index'] + 1}\n"
             f"Conteúdo: {source['content']}"
         )
-
         if remaining_chars <= 0:
             break
-
         if len(part) > remaining_chars:
             part = part[:remaining_chars]
-
         context_parts.append(part)
         remaining_chars -= len(part)
 
     context = "\n\n---\n\n".join(context_parts)
-
     if not context.strip():
         return {
             "answer": (
@@ -132,12 +135,8 @@ def answer_question(
         }
 
     answer = generate_answer(question, context)
-
     if not answer:
-        answer = (
-            "Não foi possível produzir uma resposta com as evidências "
-            "disponíveis."
-        )
+        answer = "Não foi possível produzir uma resposta com as evidências disponíveis."
 
     return {
         "answer": answer,
@@ -147,7 +146,9 @@ def answer_question(
                 "filename": source["filename"],
                 "chunk_index": source["chunk_index"],
                 "content": source["content"],
-                "distance": source["distance"],
+                "distance": source.get("distance"),
+                "lexical_score": source.get("lexical_score"),
+                "rerank_score": source.get("rerank_score"),
             }
             for source in sources
         ],
